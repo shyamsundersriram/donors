@@ -5,12 +5,12 @@ date: "2/17/2020"
 output: pdf_document
 ---
 
-
+Loading training dataset (need to change filepath )
 ```{r}
 train <- read.delim("datasets/cup98lrn.txt", sep=",")
 ```
 
-
+Loading testign dataset (need to change filepath )
 ```{r}
 test <- read.delim("datasets/cup98val.txt", sep=",")
 ```
@@ -19,7 +19,7 @@ test <- read.delim("datasets/cup98val.txt", sep=",")
 df <- train
 ```
 
-Checks nulls. 
+Checks proportion of nulls of columns in and testing dataset. 
 ```{r}
 cols <- colnames(df)
 n <- length(cols)
@@ -38,6 +38,7 @@ for (i in 1:n){
 }
 ```
 
+Only taking columsn that have non-null values for income to create a preliminary model. (In the actual model we would impute the values for income. )
 ```{r}
 df <- df[(is.na(df$INCOME) == FALSE),]
 ```
@@ -53,11 +54,13 @@ ddon <- cbind(d1, d2, donations)
 head(dmod)
 ```
 
+Tried doing a regression on donations. This had a poor R^2 value. We could try this again after we get success with the log reg model. 
 ```{r}
 donfit <- lm(TARGET_D ~ . ,data=ddon,) # Donations don't work since R^2 is 0.005
 summary(donfit)
 ```
 
+Creating logreg model. 
 ```{r}
 fit <- glm(TARGET_B ~ . ,data=dmod, family='binomial')
 summary(fit)
@@ -76,4 +79,8 @@ pred <- predict(fit, newdata=dval)
 pred <- ifelse(pred > 0.15, 1, 0)
 ```
 
-We need to add predictors into our model. So 
+As of now, our max logit value is 0.23 and we need it to be a higher number (preferably over 0.5 for predictive purposes). However we only added the summary promotion statistics and income. Try adding more categorical predictors (such as cluster, numchildren, neighborhood statistics) or aggregate predictors (based on computations of multiple columns). Try to see whether you can increase our max logit value before we can start making predictions. 
+
+
+
+
