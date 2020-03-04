@@ -5,7 +5,7 @@ date: "2/17/2020"
 output: pdf_document
 ---
 
-Loading training dataset (need to change filepath )
+Loading training dataset (need to change filepath)
 ```{r}
 train <- read.delim("datasets/cup98lrn.txt", sep=",")
 ```
@@ -62,7 +62,7 @@ summary(donfit)
 
 Creating logreg model. 
 ```{r}
-fit <- glm(TARGET_B ~ . ,data=dmod, family='binomial')
+fit <- glm(TARGET_B ~ . ,data=dmod, family='poisson')
 summary(fit)
 ```
 
