@@ -1,19 +1,16 @@
 ---
 title: "Data Cleaning"
-author: "Shyamsunder Sriram"
+author: "Vanessa Ma, Shyamsunder Sriram"
 date: "3/5/2020"
 output: pdf_document
 ---
 
-Loading training dataset (need to change filepath)
-```{r}
-setwd("~/Downloads")
-train <- read.delim("datasets/cup98lrn.txt", sep=",")
-```
-
-Loading testing dataset (need to change filepath )
-```{r}
-test <- read.delim("datasets/cup98val.txt", sep=",")
+```{r, setup}
+rm(list = ls())
+library(tidyr)
+setwd("~/Coursework/Booth/Algorithmic Marketing/donors/datasets")
+train <- read.delim("cup98LRN.txt", sep=",")
+test <- read.delim("cup98val.txt", sep=",")
 ```
 
 We are doing significant data cleaning and initially manually constructing our dataset for both training and testing data. We are using the following legend when manually constructing dataset: 
@@ -25,10 +22,10 @@ Impute to 0: Impute missing values to zero.
 Transform to indicator: Sometime a variable will have an entry for a fraction of the dataset. It is more important whether the variable exists rather than the value. 
 
 We have created these transformation functions below. 
-```{r}
+```{r, transformation functions}
 indicator <- function(column){
-  column[is.na(column)] <- as.factor('0')
-  column[!(is.na(column))] <- as.factor('1')
+  column[is.na(column)] <- 0 
+  column[!is.na(column)] <- 1
   return(column)
 }
 
@@ -61,7 +58,7 @@ removecolumns <- function(df, colstoremove){
 - Promotions 
 
 Let us create separate dataframes for these to keep track of the data cleaning. We kept track of the indices of the columns and hardcoded the split. 
-```{r}
+```{r, slice dataframes}
 # demographics dataframes
 demographics_train <- train[, c(1:28)]
 demographics_test <- test[, c(1:28)]
@@ -100,7 +97,6 @@ sumgiving_test <- test[, c(457:469)]
 
 # Targets (gave or not) for the coming mailing
 y_train <- train[, c(471:472)]
-y_test <- read.delim("datasets/valtargt.txt", sep=",")
 ```
 
 ## Variables to Change/Remove 
@@ -122,16 +118,19 @@ The rest
 - MDMAUD would be highly correlated with other predictor. Just include if donor is a major donor or not.
 - GENDER: Remove gender due to inconsistent values.  
 
-```{r}
-# Function to impute income values 
+IMPUTING INCOME:
+
+```{r, income impute}
 dft <- demographics_train
 domain_list <- unique(dft['DOMAIN'])[, 1]
 mean_incomes <- rep(0, length(domain_list))
 names(mean_incomes) <- domain_list 
+
 for (domain in domain_list){ 
   mean_incomes[domain] <- mean(!(is.na(dft[(dft['DOMAIN'] == domain),]['INCOME'])))
 }
 
+# Function to impute income values 
 impute_income <- function(domain_list){
   final_incomes <- c() 
   for (dom in domain_list){
@@ -147,7 +146,8 @@ final_incomes <- function(df){
 }
 ``` 
 
-```{r}
+CLEANING ALL DEMOGRAPHICS
+```{r, demographic clean}
 change_demographics <- function(df){
   df['CLUSTER'] <- imputezero(df['CLUSTER'])
   df['CLUSTER'] <- lapply(df['CLUSTER'], as.factor)
@@ -158,19 +158,10 @@ change_demographics <- function(df){
   #df[(df['GENDER'] == 'A')]['GENDER'] <- 'U'
   return(df)
 }
-```
 
-
-```{r}
 demographics_train <- change_demographics(demographics_train)
 demographics_test <- change_demographics(demographics_test)
-```
-
-```{r}
-head(demographics_train)
-```
-
-```{r}
+# Check that there are no nulls in the final datasets.
 table(is.na(demographics_train))
 table(is.na(demographics_test))
 ```
@@ -187,10 +178,7 @@ change_census <- function(df){
 }
 census_train <- change_census(census_train)
 census_test <- change_census(census_test)
-```
-
-Drop nulls in final dataset for both training dataset if included. 
-```{r}
+# Check that there are no nulls in the final datasets.
 table(is.na(census_train))
 table(is.na(census_test))
 ```
@@ -202,18 +190,16 @@ table(is.na(census_test))
 - WEALTH2: Remove (missing half the data. Cannot impute) 
 - GEOCODE: Remove (missing half the data. Cannot impute) 
 
-
 ```{r}
 change_overlay <- function(df){
   df <- removecolumns(df, c('WEALTH2', 'GEOCODE', 'DATASRCE', 'MAJOR'))
-  df['SOLP3'] <- imputezero(df['SOLP3'])
-  df['SOLIH'] <- imputezero(df['SOLIH'])
+  df['SOLP3'] <- indicator(df['SOLP3'])
+  df['SOLIH'] <- indicator(df['SOLIH'])
   return(df)
 }
 overlay_train <- change_overlay(overlay_train)
 overlay_test <- change_overlay(overlay_test)
 ```
-
 
 ### Mail Order Response  
 - Impute all missing variables to 0. 
@@ -224,10 +210,9 @@ for (i in 1:ncols){
   mailorder_train[, i] = imputezero(mailorder_train[, i])
   mailorder_test[, i] =  imputezero(mailorder_test[, i])
 }
-```
-
-```{r}
-head(mailorder_test)
+# Check that there are no nulls in the final datasets.
+table(is.na(mailorder_train))
+table(is.na(mailorder_test))
 ```
 
 ### Interests
@@ -244,38 +229,36 @@ for (i in 1:ncols){
 ```{r}
 nc <- ncol(promotions_train)
 for (i in 1:nc){
-  promotions_train[, i] = indicator(promotions_train[, i])
-  promotions_test[, i] = indicator(promotions_test[, i])
+  promotions_train[, i] = imputezero(promotions_train[, i])
+  promotions_test[, i] = imputezero(promotions_test[, i])
 }
-```
 
-```{r}
-nc
-head(promotions_train)
-```
+# find RFA columns and split into 3 for model matrix
+split_rfa = function(cols, df){
+  for(col in 1:length(rfa_cols)){
+  r_col = sprintf('R_%d', col)
+  f_col = sprintf('F_%d', col)
+  a_col = sprintf('A_%d', col)
+  df = df %>% separate(rfa_cols[col], c(r_col, f_col, a_col), sep = c(1, 2))
+  }
+  return(df)
+}
 
-```{r}
-table(unique(promotions_train['RFA_14']))
+rfa_cols = grep('RFA_[0-9]+', names(train), value = TRUE)
+rfa_cols = rfa_cols[!(rfa_cols %in% c('RFA_2R', 'RFA_2F', 'RFA_2A'))] # edge cases 
+promotions_train = split_rfa(rfa_cols, promotions_train)
+promotions_test = split_rfa(rfa_cols, promotions_test)
 ```
 
 ### Giving 
 ```{r}
 ncols <- ncol(giving_test)
-for (i in 1:22){
-  giving_train[, i] = indicator(giving_train[, i])
-  giving_test[, i] =  indicator(giving_test[, i])
-}
-for (i in 23:ncols){
+for (i in 1:ncols){
   giving_train[, i] = imputezero(giving_train[, i])
   giving_test[, i] =  imputezero(giving_test[, i])
 }
-```
 
-```{r}
-ncol(giving_test)
-```
-
-```{r}
+# Check that there are no nulls in the final datasets.
 table(is.na(giving_train))
 table(is.na(giving_test))
 ```
@@ -285,55 +268,35 @@ table(is.na(giving_test))
 ```{r}
 sumgiving_train <- removecolumns(sumgiving_train, c('NEXTDATE', 'TIMELAG'))
 sumgiving_test <- removecolumns(sumgiving_test, c('NEXTDATE', 'TIMELAG'))
-``` 
-
-```{r}
+# Check that there are no nulls in the final datasets.
 table(is.na(sumgiving_train))
 table(is.na(sumgiving_test))
 ```
 
 Now we are ready to create our final training and testing dataframes. 
 ```{r}
-train_comb <- cbind(demographics_train, mailorder_train, overlay_train, interests_train, census_train, promotions_train, sumprom_train, giving_train, sumgiving_train, y_train)
-test_comb <- cbind(demographics_test, mailorder_test, overlay_test, interests_test, census_test, promotions_test, sumprom_test, giving_test, sumgiving_test)
+train_concat <- cbind(demographics_train, mailorder_train, overlay_train, interests_train, census_train, promotions_train, sumprom_train, giving_train, sumgiving_train, y_train)
+test_concat <- cbind(demographics_test, mailorder_test, overlay_test, interests_test, census_test, promotions_test, sumprom_test, giving_test, sumgiving_test)
+# head(test_final)
 ```
 
-# Removing extra NaN columns. 
+Remove all date of mailing columns, since the information is redundant with the RFA status updates of the donors.
 ```{r}
-ncol(test_comb)
-```
-
-```{r}
-data <- train_comb[ ,c(1:337, 361:421)]
-test <- test_comb[ ,c(1:337, 361:419)]
-```
-
-```{r}
-head(data)
-```
-
-```{r}
-table(data$TARGET_B)
-```
-
-```{r}
-head(test)
+train_final <- train_concat[, -c(314:336)] 
+test_final <- test_concat[, -c(314:336)] 
 ```
 
 Doing training and validation split. 
 ```{r}
 set.seed(43)
-n <- nrow(data)
+n <- nrow(train_final)
 new_indices <- sample(n)
-df <- data[new_indices,]
+df <- train_final[new_indices,]
 split <- ceiling(n * 0.8)
 train <- df[1:split,]
 val <- df[(split + 1):n,]
-```
-
-
-```{r}
+# ncol(test_final)
 write.csv(train, "train.csv")
 write.csv(val, "val.csv")
-write.csv(test, "test.csv")
+write.csv(test_final, "test.csv")
 ```
