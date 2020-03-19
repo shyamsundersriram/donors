@@ -19,7 +19,6 @@ test<- read.csv("test.csv", header=TRUE)
 ```
 
 ```{r, donations}
-# CASE 1: GIVEN a donor will donate, how much will he donate
 donations_train <- train[train$TARGET_D > 0.0,]
 donations_train <- donations_train[,-c(315:383, 388, 391, 419)] # remove RFA columns, all date columns
 donations_train$CLUSTER <- as.factor(donations_train$CLUSTER)
