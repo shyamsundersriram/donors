@@ -6,8 +6,8 @@ output: pdf_document
 ---
 
 ```{r}
-# setwd("~/Downloads")
-setwd("~/Coursework/Booth/Algorithmic Marketing/donors/datasets")
+setwd("~/Downloads")
+#setwd("~/Coursework/Booth/Algorithmic Marketing/donors/datasets")
 library(tidyr)
 library(data.table)
 library(ade4)
@@ -18,29 +18,41 @@ val <- read.csv("val.csv", header=TRUE)
 test<- read.csv("test.csv", header=TRUE)
 ```
 
+```{r}
+head(train)
+
+```
+
+```{r}
+train[386]
+```
+
 ```{r, donations}
+# CASE 1: GIVEN a donor will donate, how much will he donate
 donations_train <- train[train$TARGET_D > 0.0,]
-donations_train <- donations_train[,-c(315:383, 388, 391, 419)] # remove RFA columns, all date columns
+donations_train <- donations_train[,-c(315:383, 388, 391, 156, 385, 415, 419, 420)] # remove RFA and Date columns
 donations_train$CLUSTER <- as.factor(donations_train$CLUSTER)
 # factor_cols <- sapply(donations_train, function(x) is.factor(x))
 # which(n <- sapply(donations_train[, factor_cols], function(x) length(unique(x)) <2))
 
 ###### R2 = 0.8 ######
-dt.mm <- model.matrix(~., data = donations_train[, -c(350)]) # remove TARGET_B columns, keep only variables
+dt.mm <- model.matrix(~., data = donations_train[, -c(351)]) # remove TARGET_B, TARGET_D columns, keep only variables
 mod <- lm(TARGET_D ~ dt.mm -1, data = donations_train)
 summary(mod)
 coef_values = data.frame(summary(mod)$coefficients)[-c(1),]
-sub_predictors = rownames(subset(coef_values, coef_values['Pr...t..'] < 0.05))
+sub_predictors = rownames(subset(coef_values, coef_values['Pr...t..'] < 0.10))
+```
 
+
+```{r}
 #### PREP FOR REITERATION ####
-dt.mm_norm = scale(dt.mm, center=FALSE, scale=colSums(dt.mm))
-dt.mm_df = data.frame(dt.mm_norm)
+dt.mm_df = data.frame(dt.mm)
 
 repeated_lm <- function(df){
   mod <- lm(TARGET_D ~ . -1, data = df)
   summary_mod <- summary(mod)
   coef_values <- data.frame(summary_mod$coefficients)[-c(1),]
-  red_predictors <- subset(coef_values, coef_values['Pr...t..'] < 0.05)
+  red_predictors <- subset(coef_values, coef_values['Pr...t..'] < 0.10)
   predictors <- rownames(data.frame(red_predictors))
   red_df <- df[predictors]
   TARGET_D <- df$TARGET_D
@@ -58,11 +70,14 @@ summary(final_mod)
 ```
 
 ```{r}
+plot(final_mod)
+```
+
+```{r}
 logreg_df <- train[colnames(final_df)]
-# logreg_df <- logreg_df[, -c(7)] # remove last date
 TARGET_B <- train['TARGET_B']
-logreg_df <- cbind(logreg_df[, !(names(logreg_df) == 'TARGET_D')], TARGET_B) 
-logreg <- lm(TARGET_B~ . -1, data=logreg_df, family='binomial')
+logreg_df <- cbind(logreg_df[, !(names(logreg_df) %in% c('TARGET_D', 'LASTDATE'))], TARGET_B) 
+logreg <- glm(TARGET_B ~ . -1, data=logreg_df, family='binomial')
 summary(logreg)
 ```
 
@@ -77,19 +92,46 @@ pred <- predict(logreg, newdata=logreg_val, type='response')
 ```
 
 
-```{r, random forest}
-rf <- randomForest(TARGET_B ~ ., data = logreg_df)
-
-```
-
 ```{r}
 max(pred)
 ```
+```{r}
+library(StatMeasures)
+min(pred[decile(pred) == 9])
+```
 
 ```{r}
-finalpred <- ifelse(pred > 0.08, 1, 0)
+finalpred <- ifelse(pred > 0.0935, 1, 0)
 ```
 
 ```{r}
 table(val$TARGET_B, finalpred)
 ```
+
+```{r}
+pred_df <- cbind(val, pred)
+```
+
+```{r}
+hist(pred_df[pred_df$TARGET_B == 0,]$pred)
+```
+
+```{r}
+hist(pred_df[pred_df$TARGET_B == 1,]$pred)
+```
+
+```{r}
+library(pROC)
+g <- roc(TARGET_B ~ pred, data = pred_df)
+plot(g)    
+```
+
+```{r}
+auc(g)
+```
+
+```{r}
+write.csv(logreg_df, 'model_train.csv')
+write.csv(logreg_val, 'model_val.csv')
+```
+
