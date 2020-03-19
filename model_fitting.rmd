@@ -21,20 +21,21 @@ test<- read.csv("test.csv", header=TRUE)
 ```{r, donations}
 # CASE 1: GIVEN a donor will donate, how much will he donate
 donations_train <- train[train$TARGET_D > 0.0,]
-donations_train <- donations_train[,-c(315:383, 388, 391)] # remove RFA columns
+donations_train <- donations_train[,-c(315:383, 388, 391, 419)] # remove RFA columns, all date columns
 donations_train$CLUSTER <- as.factor(donations_train$CLUSTER)
 # factor_cols <- sapply(donations_train, function(x) is.factor(x))
 # which(n <- sapply(donations_train[, factor_cols], function(x) length(unique(x)) <2))
 
 ###### R2 = 0.8 ######
-dt.mm <- model.matrix(~., data = donations_train[, -c(351)]) # remove TARGET_B, TARGET_D columns, keep only variables
+dt.mm <- model.matrix(~., data = donations_train[, -c(350)]) # remove TARGET_B columns, keep only variables
 mod <- lm(TARGET_D ~ dt.mm -1, data = donations_train)
 summary(mod)
 coef_values = data.frame(summary(mod)$coefficients)[-c(1),]
 sub_predictors = rownames(subset(coef_values, coef_values['Pr...t..'] < 0.05))
 
 #### PREP FOR REITERATION ####
-dt.mm_df = data.frame(dt.mm)
+dt.mm_norm = scale(dt.mm, center=FALSE, scale=colSums(dt.mm))
+dt.mm_df = data.frame(dt.mm_norm)
 
 repeated_lm <- function(df){
   mod <- lm(TARGET_D ~ . -1, data = df)
@@ -53,15 +54,16 @@ for (i in c(1:10)){
   df_ <- repeated_lm(df_)
 }
 final_df <- df_
-final_mod <- lm(TARGET_D ~ ., data=final_df)
+final_mod <- lm(log(TARGET_D) ~ . -1, data=final_df)
 summary(final_mod)
 ```
 
 ```{r}
 logreg_df <- train[colnames(final_df)]
+# logreg_df <- logreg_df[, -c(7)] # remove last date
 TARGET_B <- train['TARGET_B']
 logreg_df <- cbind(logreg_df[, !(names(logreg_df) == 'TARGET_D')], TARGET_B) 
-logreg <- glm(TARGET_B ~ ., data=logreg_df, family='binomial')
+logreg <- lm(TARGET_B~ . -1, data=logreg_df, family='binomial')
 summary(logreg)
 ```
 
