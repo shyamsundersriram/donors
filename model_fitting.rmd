@@ -1,0 +1,94 @@
+---
+title: "model_fitting"
+author: "Vanessa Ma, Shyamsunder Sriram"
+date: "3/16/2020"
+output: pdf_document
+---
+
+```{r}
+# setwd("~/Downloads")
+setwd("~/Coursework/Booth/Algorithmic Marketing/donors/datasets")
+library(tidyr)
+library(data.table)
+library(ade4)
+library(randomForest)
+
+train <- read.csv("train.csv", header=TRUE)
+val <- read.csv("val.csv", header=TRUE)
+test<- read.csv("test.csv", header=TRUE)
+```
+
+```{r, donations}
+# CASE 1: GIVEN a donor will donate, how much will he donate
+donations_train <- train[train$TARGET_D > 0.0,]
+donations_train <- donations_train[,-c(315:383, 388, 391)] # remove RFA columns
+donations_train$CLUSTER <- as.factor(donations_train$CLUSTER)
+# factor_cols <- sapply(donations_train, function(x) is.factor(x))
+# which(n <- sapply(donations_train[, factor_cols], function(x) length(unique(x)) <2))
+
+###### R2 = 0.8 ######
+dt.mm <- model.matrix(~., data = donations_train[, -c(351)]) # remove TARGET_B, TARGET_D columns, keep only variables
+mod <- lm(TARGET_D ~ dt.mm -1, data = donations_train)
+summary(mod)
+coef_values = data.frame(summary(mod)$coefficients)[-c(1),]
+sub_predictors = rownames(subset(coef_values, coef_values['Pr...t..'] < 0.05))
+
+#### PREP FOR REITERATION ####
+dt.mm_df = data.frame(dt.mm)
+
+repeated_lm <- function(df){
+  mod <- lm(TARGET_D ~ . -1, data = df)
+  summary_mod <- summary(mod)
+  coef_values <- data.frame(summary_mod$coefficients)[-c(1),]
+  red_predictors <- subset(coef_values, coef_values['Pr...t..'] < 0.05)
+  predictors <- rownames(data.frame(red_predictors))
+  red_df <- df[predictors]
+  TARGET_D <- df$TARGET_D
+  red_df <- cbind(red_df, TARGET_D)
+  return(red_df)
+}
+
+df_ = dt.mm_df[, -c(1:2)]
+for (i in c(1:10)){
+  df_ <- repeated_lm(df_)
+}
+final_df <- df_
+final_mod <- lm(TARGET_D ~ ., data=final_df)
+summary(final_mod)
+```
+
+```{r}
+logreg_df <- train[colnames(final_df)]
+TARGET_B <- train['TARGET_B']
+logreg_df <- cbind(logreg_df[, !(names(logreg_df) == 'TARGET_D')], TARGET_B) 
+logreg <- glm(TARGET_B ~ ., data=logreg_df, family='binomial')
+summary(logreg)
+```
+
+```{r, validation}
+donations_val <- val[val$TARGET_D > 0.0, ]
+donations_val<- donations_val[,-c(1:5, 388, 391)]
+
+logreg_val <- val[colnames(final_df)]
+TARGET_B_val <- val['TARGET_B']
+logreg_val <- cbind(logreg_val[, !(names(logreg_val) == 'TARGET_D')], TARGET_B_val) 
+pred <- predict(logreg, newdata=logreg_val, type='response')
+```
+
+
+```{r, random forest}
+rf <- randomForest(TARGET_B ~ ., data = logreg_df)
+
+```
+
+```{r}
+max(pred)
+```
+
+```{r}
+finalpred <- ifelse(pred > 0.08, 1, 0)
+```
+
+```{r}
+table(val$TARGET_B, finalpred)
+```

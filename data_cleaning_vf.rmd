@@ -162,8 +162,8 @@ change_demographics <- function(df){
 demographics_train <- change_demographics(demographics_train)
 demographics_test <- change_demographics(demographics_test)
 # Check that there are no nulls in the final datasets.
-table(is.na(demographics_train))
-table(is.na(demographics_test))
+# table(is.na(demographics_train))
+# table(is.na(demographics_test))
 ```
 
 ### Census Data 
@@ -179,8 +179,8 @@ change_census <- function(df){
 census_train <- change_census(census_train)
 census_test <- change_census(census_test)
 # Check that there are no nulls in the final datasets.
-table(is.na(census_train))
-table(is.na(census_test))
+# table(is.na(census_train))
+# table(is.na(census_test))
 ```
 
 ### Sources of Overlay Data 
@@ -211,8 +211,8 @@ for (i in 1:ncols){
   mailorder_test[, i] =  imputezero(mailorder_test[, i])
 }
 # Check that there are no nulls in the final datasets.
-table(is.na(mailorder_train))
-table(is.na(mailorder_test))
+# table(is.na(mailorder_train))
+# table(is.na(mailorder_test))
 ```
 
 ### Interests
@@ -236,9 +236,9 @@ for (i in 1:nc){
 # find RFA columns and split into 3 for model matrix
 split_rfa = function(cols, df){
   for(col in 1:length(rfa_cols)){
-  r_col = sprintf('R_%d', col)
-  f_col = sprintf('F_%d', col)
-  a_col = sprintf('A_%d', col)
+  r_col = sprintf('R_%d', col+1)
+  f_col = sprintf('F_%d', col+1)
+  a_col = sprintf('A_%d', col+1)
   df = df %>% separate(rfa_cols[col], c(r_col, f_col, a_col), sep = c(1, 2))
   }
   return(df)
@@ -259,8 +259,8 @@ for (i in 1:ncols){
 }
 
 # Check that there are no nulls in the final datasets.
-table(is.na(giving_train))
-table(is.na(giving_test))
+# table(is.na(giving_train))
+# table(is.na(giving_test))
 ```
 
 ### Summary Giving 
@@ -269,8 +269,8 @@ table(is.na(giving_test))
 sumgiving_train <- removecolumns(sumgiving_train, c('NEXTDATE', 'TIMELAG'))
 sumgiving_test <- removecolumns(sumgiving_test, c('NEXTDATE', 'TIMELAG'))
 # Check that there are no nulls in the final datasets.
-table(is.na(sumgiving_train))
-table(is.na(sumgiving_test))
+# table(is.na(sumgiving_train))
+# table(is.na(sumgiving_test))
 ```
 
 Now we are ready to create our final training and testing dataframes. 
@@ -282,8 +282,8 @@ test_concat <- cbind(demographics_test, mailorder_test, overlay_test, interests_
 
 Remove all date of mailing columns, since the information is redundant with the RFA status updates of the donors.
 ```{r}
-train_final <- train_concat[, -c(314:336)] 
-test_final <- test_concat[, -c(314:336)] 
+train_final <- train_concat[, -grep("\\wDATE_\\d+", colnames(train_concat))]
+test_final <- test_concat[, -grep("\\wDATE_\\d+", colnames(test_concat))]
 ```
 
 Doing training and validation split. 
